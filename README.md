@@ -59,8 +59,14 @@ La conexión se ajusta por variables de entorno, sin editar archivos versionados
 
 ## Endpoints
 
-Todo lo que sigue se pide **por el gateway** (`http://localhost:8090`). Cada servicio tiene su
-Swagger en `/swagger-ui.html` y su documento en `/v3/api-docs`.
+Todo lo que sigue se pide **por el gateway** (`http://localhost:8090`).
+
+### Swagger
+
+Una sola página con las tres APIs: **http://localhost:8090/swagger-ui.html**. El selector de arriba
+cambia entre Catálogos, Usuarios y Medición; el gateway pide cada documento al servicio dueño por sus
+propias rutas (`/docs/<servicio>/v3/api-docs`), así que no hay que abrir tres pestañas ni pelear con
+CORS. Cada servicio sigue teniendo además el suyo en `http://localhost:809x/swagger-ui.html`.
 
 ### Catálogos (8091)
 
@@ -94,6 +100,38 @@ Swagger en `/swagger-ui.html` y su documento en `/v3/api-docs`.
 | GET | `/api/indicadores/{fecha}` | Conversión y tránsito del día, leídos de la vista |
 | GET | `/api/indicadores?tipoDia=Habil` | Agregado por tipo de día, con `desde` y `hasta` opcionales |
 | GET | `/api/indicadores/pendientes/{fecha}` | Bloques con ingresos cargados sin sesión validada |
+
+## Seguridad
+
+El token lo firma `usuarios` (HS256, 8 h, con el perfil dentro) y lo valida el **gateway** antes de
+rutear: los servicios de negocio no se tocan. La política se lee en dos métodos de
+`gateway/seguridad/PoliticaDeAcceso`, no repartida por las rutas.
+
+| Nivel | Rutas |
+|---|---|
+| Público | `POST /api/auth/login`, `GET /api/auth/preguntas`, la documentación y `/actuator/**` |
+| Con sesión | todo lo demás: catálogos, sesiones, indicadores y `GET /api/usuarios/{id}` (la ficha propia) |
+| Solo administración (P-05) | `GET /api/usuarios` (la lista completa) y cualquier escritura sobre `/api/usuarios/**` |
+
+Cuando el token es válido, el gateway agrega `X-Usuario-Id`, `X-Usuario-Rol` y `X-Usuario-Rut` a la
+petición, así el servicio dueño sabe quién pide sin volver a consultar `usuarios`.
+
+Lo que se comprobó por el gateway:
+
+| Caso | Resultado |
+|---|---|
+| `GET /api/catalogos/accesos` sin token | `401` |
+| `GET /api/catalogos/accesos` con token de jefa | `200` |
+| `GET /api/usuarios` con token de jefa (P-01) | `403` |
+| `GET /api/usuarios` con token de administración (P-05) | `200` |
+| `GET /api/usuarios/1` con token de jefa | `200` (es una ficha, no la lista) |
+| `POST /api/auth/login` | `200` (público) |
+| token con la firma alterada | `401` |
+| `Authorization` sin el prefijo `Bearer ` | `401` |
+| servicio de medición abajo, pedido con token | `503` con motivo |
+
+**Límite conocido**: el filtro vive en el borde, así que quien llame directo al puerto del servicio
+(8091 a 8093) no pasa por él. Es una decisión del proyecto, no un olvido.
 
 ## Migraciones
 
@@ -155,7 +193,10 @@ Funcionando y verificado contra MySQL 8.4:
 - las tres bases se crean solas y Flyway aplica 2, 2 y 4 migraciones;
 - los cuatro servicios se registran en Eureka;
 - los endpoints responden por el gateway, con las cifras del anexo: **5.735 ingresos, 497
-  transacciones y 8,7 % de conversión** del 15-09-2026.
+  transacciones y 8,7 % de conversión** del 15-09-2026;
+- el gateway valida el token, aplica la política por perfil y responde `401`, `403` y `503` con
+  `{"motivo": "..."}`;
+- el Swagger del gateway reúne las tres APIs en una sola página.
 
-Pendiente: escritura de la medición (programar, cerrar y validar sesiones, registrar y anular,
-cargar conteos), el filtro que valida el token en el gateway y la conexión de la app con Retrofit.
+Pendiente: escritura de la medición (programar, iniciar, cerrar y validar sesiones; registrar y
+anular; cargar conteos y transacciones) y la conexión de la app con Retrofit.
