@@ -18,4 +18,11 @@ public interface SesionRepositorio extends JpaRepository<SesionObservacion, Inte
 
     @EntityGraph(attributePaths = "estado")
     List<SesionObservacion> findAllByOrderByFechaDescHoraInicioProgAsc();
+
+    boolean existsByCodigo(String codigo);
+
+    long countByFecha(LocalDate fecha);
+
+    @EntityGraph(attributePaths = "estado")
+    java.util.Optional<SesionObservacion> findById(Integer id);
 }

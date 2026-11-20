@@ -10,4 +10,6 @@ public interface RegistroRepositorio extends JpaRepository<RegistroObservacion, 
     long countByIdSesionAndAnuladoFalse(Integer idSesion);
 
     List<RegistroObservacion> findTop10ByIdSesionAndAnuladoFalseOrderByFechaHoraDesc(Integer idSesion);
+
+    long countByIdSesion(Integer idSesion);
 }

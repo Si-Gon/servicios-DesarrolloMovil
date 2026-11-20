@@ -97,9 +97,38 @@ CORS. Cada servicio sigue teniendo además el suyo en `http://localhost:809x/swa
 | GET | `/api/sesiones?fecha=AAAA-MM-DD` | Sesiones de una fecha (por defecto, hoy) |
 | GET | `/api/sesiones/por-validar` | Cerradas por el observador, esperando revisión |
 | GET | `/api/sesiones/{id}` | Una sesión con su estado y sus registros |
+| POST | `/api/sesiones` | Programa una sesión; el bloque se deduce de la hora de inicio |
+| PATCH | `/api/sesiones/{id}/iniciar` | Marca el inicio real |
+| PATCH | `/api/sesiones/{id}/cerrar` | Cierra; exige el mínimo de 30 registros |
+| PATCH | `/api/sesiones/{id}/validar` | Valida una sesión cerrada |
+| PATCH | `/api/sesiones/{id}/rechazar` | Rechaza con motivo escrito |
+| POST | `/api/registros` | Anota una persona en una sesión en curso |
+| PATCH | `/api/registros/{id}/anular` | Anula un registro con su motivo, sin borrarlo |
+| GET | `/api/registros/sesion/{id}/ultimos` | Los últimos diez registros válidos |
 | GET | `/api/indicadores/{fecha}` | Conversión y tránsito del día, leídos de la vista |
 | GET | `/api/indicadores?tipoDia=Habil` | Agregado por tipo de día, con `desde` y `hasta` opcionales |
 | GET | `/api/indicadores/pendientes/{fecha}` | Bloques con ingresos cargados sin sesión validada |
+
+## Las reglas de la sesión
+
+El ciclo de una sesión está escrito en el servicio, no en la app: la app solo toca botones.
+
+```
+Programada → En curso → Finalizada → Validada
+                                 ↘ Rechazada (con motivo)
+```
+
+- **El bloque no se elige**: se deduce de la hora de inicio contra el catálogo de `catalogos`, y el
+  acceso se valida contra el mismo servicio. Es la única llamada entre servicios del proyecto, y es
+  de lectura, con caché de 60 segundos para no preguntar en cada toque.
+- **Cerrar exige 30 registros válidos.** Si no llega, responde `400` diciendo cuántos lleva.
+- **Nadie valida ni rechaza su propia sesión**: responde `403` y la regla también está en la tabla.
+- **Cada operación exige el estado anterior.** Si la sesión cambió entre que la pantalla se abrió y
+  se tocó el botón, la respuesta es `409` con el estado real («Ahora está en «En curso»»).
+- **Anular no borra**: deja la marca, quién la hizo, cuándo y por qué. El registro sigue en la base
+  y deja de contar para los indicadores.
+- **Quién anota sale del token.** El gateway pasa `X-Usuario-Id`; el servicio compara contra el
+  observador de la sesión y responde `403` si es otra persona.
 
 ## Seguridad
 
@@ -222,7 +251,10 @@ Funcionando y verificado contra MySQL 8.4:
 - el gateway valida el token, aplica la política por perfil y responde `401`, `403` y `503` con
   `{"motivo": "..."}`;
 - los tres servicios responden `400`, `404`, `409` y `500` con el mismo cuerpo y los mismos textos;
+- el ciclo completo de una sesión funciona por el gateway: programar (`201`, bloque deducido),
+  iniciar, anotar 32 registros, cerrar, rechazar la validación propia (`403`) y validar con otra
+  persona (`200`), con las filas correspondientes en MySQL;
 - el Swagger del gateway reúne las tres APIs en una sola página.
 
-Pendiente: escritura de la medición (programar, iniciar, cerrar y validar sesiones; registrar y
-anular; cargar conteos y transacciones) y la conexión de la app con Retrofit.
+Pendiente: la carga de la tienda (conteos por bloque y transacciones, que es lo que alimenta la
+conversión) y la conexión de la app con Retrofit.
