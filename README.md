@@ -130,6 +130,39 @@ Programada → En curso → Finalizada → Validada
 - **Quién anota sale del token.** El gateway pasa `X-Usuario-Id`; el servicio compara contra el
   observador de la sesión y responde `403` si es otra persona.
 
+## Conectar la app móvil
+
+La app apunta al **gateway** (8090), no a los servicios. La forma más simple de probar desde el
+emulador o desde el teléfono por USB es el túnel de `adb`, que no depende del firewall de Windows
+ni de que los dos equipos estén en la misma red:
+
+```bash
+adb reverse tcp:8090 tcp:8090
+# en la app: Perfil → Probar la conexión, con http://localhost:8090
+```
+
+Y así queda la prueba de la pantalla de conexión, con el backend corriendo en el PC:
+
+```
+Inicio de sesión     Carolina Fuentes · P-01 · token de 237 caracteres      2282 ms
+Catálogos            4 accesos · A1, A2, A3, A4                             494 ms
+Sesiones del 15-09   2 sesiones · S-0001 Validada · S-0002 Validada         360 ms
+Indicadores 15-09    5735 ingresos · 497 transacciones · 8.7 % conversión   315 ms
+Conexión completa: la app habló con el gateway y con los tres servicios.
+```
+
+**Por qué el túnel y no la IP del PC**: con el emulador, `http://10.0.2.2:8090` es el PC visto desde
+adentro, pero el firewall de Windows suele bloquear ese TCP entrante —el `ping` responde y la
+conexión se queda esperando hasta el timeout—. `adb reverse` crea un túnel por el cable y evita el
+problema. Si se prueba por la red local (teléfono en Wi-Fi, sin cable), hay que permitir el rango
+en el firewall y usar la IP del PC en la pantalla de conexión:
+
+```powershell
+netsh advfirewall firewall add rule name="RinconSur API" dir=in action=allow protocol=TCP localport=8090-8093
+```
+
+La aplicación guarda la última dirección usada, así que no hay que escribirla cada vez.
+
 ## Seguridad
 
 El token lo firma `usuarios` (HS256, 8 h, con el perfil dentro) y lo valida el **gateway** antes de
@@ -257,4 +290,4 @@ Funcionando y verificado contra MySQL 8.4:
 - el Swagger del gateway reúne las tres APIs en una sola página.
 
 Pendiente: la carga de la tienda (conteos por bloque y transacciones, que es lo que alimenta la
-conversión) y la conexión de la app con Retrofit.
+conversión) y llevar la conexión a las pantallas de la app, que hoy siguen leyendo SQLite.
