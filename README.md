@@ -133,6 +133,31 @@ Lo que se comprobó por el gateway:
 **Límite conocido**: el filtro vive en el borde, así que quien llame directo al puerto del servicio
 (8091 a 8093) no pasa por él. Es una decisión del proyecto, no un olvido.
 
+## Errores
+
+Los tres servicios devuelven el mismo cuerpo —`{"motivo": "..."}`, con tildes— y el mismo juego de
+estados. Cada uno tiene un solo `excepcion/ManejadorDeErrores`: si hubiera dos consejos, el formato
+dependería del orden en que Spring los elija.
+
+| Situación | Estado | Ejemplo de motivo |
+|---|---|---|
+| Un dato del `@Valid` no cumple | `400` | «El correo no tiene un formato válido.» |
+| El RUT no pasa el módulo 11 | `400` | «El RUT no es válido.» |
+| El cuerpo no es JSON válido | `400` | «El cuerpo de la petición no es válido.» |
+| Un parámetro con el tipo equivocado | `400` | «Alguno de los datos enviados no es válido.» |
+| El recurso no existe | `404` | «No existe una sesión con ese identificador.» |
+| Choca con una regla de unicidad | `409` | «Ya existe una cuenta con el RUT 15.234.871-1.» |
+| Lo inesperado | `500` | texto corto; el detalle queda en el log del servicio |
+
+Las reglas del negocio se lanzan con fábricas de `ErrorDeNegocio` (`invalido`, `noEncontrado`,
+`conflicto`, `noAutorizado`, `prohibido`), así el controlador queda con su camino feliz y una línea
+para el error, sin armar `ResponseEntity` a mano en cada caso.
+
+En el **gateway** el `401`, `403` y `503` los escribe el filtro; el `404` de una ruta sin dueño lo
+formatea `excepcion/ManejadorDeErroresWeb`, porque en WebFlux los errores no pasan por un
+`@RestControllerAdvice`. Detalle: una ruta inexistente responde `404` aunque no haya token, porque el
+filtro corre dentro del ruteo y esa petición no llega a ninguna ruta.
+
 ## Migraciones
 
 Viven en `src/main/resources/db/migracion`, con `V1__`, `V2__` … y **una migración aplicada no se
@@ -196,6 +221,7 @@ Funcionando y verificado contra MySQL 8.4:
   transacciones y 8,7 % de conversión** del 15-09-2026;
 - el gateway valida el token, aplica la política por perfil y responde `401`, `403` y `503` con
   `{"motivo": "..."}`;
+- los tres servicios responden `400`, `404`, `409` y `500` con el mismo cuerpo y los mismos textos;
 - el Swagger del gateway reúne las tres APIs en una sola página.
 
 Pendiente: escritura de la medición (programar, iniciar, cerrar y validar sesiones; registrar y
