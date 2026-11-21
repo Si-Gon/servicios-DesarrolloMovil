@@ -10,5 +10,8 @@ public record RegistrarPeticion(
     @NotNull(message = "Indica el rango etario.") Integer idRango,
     @NotNull(message = "Indica el tipo de compañía.") Integer idTipoCompania,
     Boolean comprasOtraTienda,
-    Integer idAccesoDestino
+    Integer idAccesoDestino,
+    // Momento en que se anotó la persona. Un registro hecho sin red puede enviarse minutos
+    // después: si no viniera, el indicador de la hora quedaría corrido.
+    java.time.LocalDateTime fechaHora
 ) { }

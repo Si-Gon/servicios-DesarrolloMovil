@@ -40,7 +40,7 @@ public class RegistroServicio {
 
         RegistroObservacion r = new RegistroObservacion();
         r.setIdSesion(peticion.idSesion());
-        r.setFechaHora(LocalDateTime.now());
+        r.setFechaHora(peticion.fechaHora() == null ? LocalDateTime.now() : peticion.fechaHora());
         r.setIdClasificacion(peticion.idClasificacion());
         r.setIdRango(peticion.idRango());
         r.setIdTipoCompania(peticion.idTipoCompania());
