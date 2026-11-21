@@ -220,6 +220,45 @@ formatea `excepcion/ManejadorDeErroresWeb`, porque en WebFlux los errores no pas
 `@RestControllerAdvice`. Detalle: una ruta inexistente responde `404` aunque no haya token, porque el
 filtro corre dentro del ruteo y esa petición no llega a ninguna ruta.
 
+## Pruebas y cobertura
+
+```bash
+mvn verify
+```
+
+**149 pruebas** en los cuatro módulos con lógica (medición 63, usuarios 40, gateway 29, catálogos 17)
+y **94,3 % de cobertura de líneas**, medida con JaCoCo sobre lo que tiene reglas: servicios,
+controladores, filtros y manejadores de error. Los DTO, las entidades, los repositorios y las clases
+de arranque quedan fuera a propósito: no tienen decisiones que probar y contarlos infla el número.
+
+| Módulo | Líneas cubiertas | Cobertura |
+|---|---|---|
+| `catalogos` | 46/46 | 100 % |
+| `gateway` | 75/75 | 100 % |
+| `medicion` | 265/283 | 93,6 % |
+| `usuarios` | 157/172 | 91,3 % |
+| **Total** | **543/576** | **94,3 %** |
+
+La compuerta está en el pom padre (`jacoco-maven-plugin`, `check` en `verify`, mínimo 80 % por
+módulo): si una prueba deja de cubrir una regla, el build falla y no llega a la entrega. `eureka`
+queda fuera porque es infraestructura de Spring.
+
+Qué se prueba, en una línea cada cosa:
+
+- **La máquina de estados de la sesión**: cada paso exige el estado anterior y responde con el
+  estado real («Solo se valida una sesión cerrada. Ahora está en «En curso»»), el mínimo de 30
+  registros al cerrar, y la regla de que nadie valida ni rechaza la sesión que observó.
+- **El token en el borde**: público sin token, 401 sin cabecera o con el prefijo `Bearer` mal
+  escrito, 401 con la firma manipulada o vencida, 403 con un rol que no administra, y las
+  cabeceras `X-Usuario-Id`/`X-Usuario-Rol` que el servicio de destino da por ciertas.
+- **Las cuentas**: RUT con módulo 11 aceptando `K`, clave PBKDF2 y el hash `sha256` heredado de la
+  semilla, cargo que sale del perfil y del género, y los duplicados de RUT y correo.
+- **Los indicadores y el reporte**: las cifras del anexo (5.735 / 497 / 8,7 %), el día sin carga
+  que devuelve vacío para que la app caiga a su copia local, y los dos fallos que ya aparecieron en
+  vivo — `SUM()` nulo en una vista y el mes en curso sin cifras.
+
+El reporte HTML de cada módulo se entrega junto al proyecto, en `../cobertura-servicios/<módulo>/`.
+
 ## Migraciones
 
 Viven en `src/main/resources/db/migracion`, con `V1__`, `V2__` … y **una migración aplicada no se
